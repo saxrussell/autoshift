@@ -10,6 +10,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+bin/
 build/
 develop-eggs/
 dist/
@@ -122,3 +123,11 @@ keys.db
 
 # notebooks folder
 notebooks/
+
+# intellij/jetbrains
+.idea/
+
+# terraform
+*.tfvars
+.terraform/
+backend.tf
