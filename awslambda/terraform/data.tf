@@ -35,12 +35,11 @@ data "aws_iam_policy_document" "autoshift_lambda_exec_role" {
     sid    = "AutoshiftParamStoreAccess"
     effect = "Allow"
     actions = [
-      "ssm:DescribeParameters",
-      "ssm:GetParameters",
-      "ssm:GetParametersByPath"
+      "ssm:Describe*",
+      "ssm:Get*"
     ]
     resources = [
-      "arn:aws:ssm:${var.provider_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.ssm_param_path_name}/*"
+      "*"
     ]
   }
 
@@ -49,6 +48,7 @@ data "aws_iam_policy_document" "autoshift_lambda_exec_role" {
     effect = "Allow"
     actions = [
       "dynamodb:BatchGet*",
+      "dynamodb:Describe*",
       "dynamodb:Get*",
       "dynamodb:DeleteItem",
       "dynamodb:List*",

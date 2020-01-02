@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 
-from twarc import Twarc
-import os
-import json
-import re
 import calendar
+import json
+import os
+import re
+from datetime import *
+
 import boto3
 from botocore.exceptions import ClientError
-from datetime import *
 from dateutil.parser import *
-from pynamodb.models import Model
 from pynamodb.attributes import *
 from pynamodb.exceptions import DoesNotExist
+from pynamodb.models import Model
+from twarc import Twarc
 
 
 def get_tweets(tcconfig, up_to_pages=1, source_id="dgSHiftCodes"):
@@ -139,7 +140,7 @@ def write_dynamo_item(tweet_dict):
 def publish_sqs_message(queue_name, msg_json):
     """This function does not validate the json for msg_json."""
     client = boto3.client('sqs')
-    queue_url = client.get_queue_url(QueueName=queue_name)
+    queue_url = client.get_queue_url(QueueName=queue_name)["QueueUrl"]
     client.send_message(QueueUrl=queue_url, MessageBody=msg_json)
 
 

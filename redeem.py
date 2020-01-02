@@ -1,9 +1,13 @@
+import calendar
+import json
 import os
-from shift import ShiftClient
-from fetch import ShiftCode
+
 import boto3
 from botocore.exceptions import ClientError
-import json
+
+from dateutil.parser import *
+from fetch import ShiftCode
+from shift import ShiftClient
 
 
 def handler_redeem(event, context):
@@ -25,7 +29,8 @@ def handler_redeem(event, context):
 
     if shift_username is not None and shift_password is not None:
         shift_client = ShiftClient(user=shift_username["Parameter"]["Value"],
-                                   pw=shift_password["Parameter"]["Value"])
+                                   pw=shift_password["Parameter"]["Value"],
+                                   cookiedir='/tmp')
 
     for rec in event['Records']:
         msg_body = None
@@ -39,12 +44,15 @@ def handler_redeem(event, context):
         redeemed = shift_client.redeem(msg_body["code"], platform)
 
         if redeemed:
+            # convert tweet created timestamp to epoch time
+            tweet_timestamp = calendar.timegm(parse(msg_body["tweet_created"]).timetuple())
+
             # write redeemed state to dynamo
             print("SUCCESS : SHiFT code has been redeemed in shift.gearboxsoftware.com!")
             print("Updating database...")
             try:
                 # pull the current db item into memory
-                shift_item = ShiftCode.get(msg_body['code'], msg_body['tweet_created'])
+                shift_item = ShiftCode.get(msg_body['code'], tweet_timestamp)
 
                 # update the redeemed value on the local memory item
                 shift_item.update(
@@ -59,7 +67,7 @@ def handler_redeem(event, context):
 
             # validate the write
             try:
-                updated_shift_item = ShiftCode.get(msg_body['code'], msg_body['tweet_created'])
+                updated_shift_item = ShiftCode.get(msg_body['code'], tweet_timestamp)
                 updated_item_attrs = updated_shift_item.__dict__
                 if updated_item_attrs["attribute_values"]["redeemed"]:
                     print("SUCCESS : SHiFT code redeem status updated in database.")
