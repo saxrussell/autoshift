@@ -108,7 +108,7 @@ class ShiftClient:
         self.client = requests.session()
         self.last_status = Status.NONE
         if cookiedir is None:
-            self.cookie_file = path.join(DIRNAME, ".cookies.save")
+            self.cookie_file = path.join(DIRNAME, "data", ".cookies.save")
         else:
             self.cookie_file = path.join(cookiedir, '.cookies.save')
         # try to load cookies. Query for login data if not present
