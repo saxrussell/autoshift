@@ -8,85 +8,85 @@ variable "ssm_param_twitter_api_consumer_key" {}
 variable "ssm_param_twitter_api_consumer_secret" {}
 
 variable "provider_profile" {
-  type = "string"
+  type = string
 
   default = "default"
 }
 
 variable "provider_region" {
-  type = "string"
+  type = string
 
   default = "us-west-2"
 }
 
 variable "ssm_param_path_name" {
-  type = "string"
+  type = string
 
   default = "autoshift"
 }
 
 variable "sqs_redeem_queue_name" {
-  type = "string"
+  type = string
 
   default = "shift_code_redeem"
 }
 
 variable "sqs_publish_queue_name" {
-  type = "string"
+  type = string
 
   default = "shift_code_publish"
 }
 
 variable "dynamodb_table_name" {
-  type = "string"
+  type = string
 
   default = "autoshift"
 }
 
 variable "lambda_exec_role_name" {
-  type = "string"
+  type = string
 
   default = "autoshift_lambda"
 }
 
 variable "lambda_exec_role_policy_name" {
-  type = "string"
+  type = string
 
   default = "autoshift_lambda"
 }
 
 variable "lambda_function_name" {
-  type = "string"
+  type = string
 
   default = "autoshift"
 }
 
 variable "publish_lambda_function_name" {
-  type = "string"
+  type = string
 
   default = "autoshift_publish"
 }
 
 variable "redeem_timeout" {
-  type = "string"
+  type = string
 
   default = "10"
 }
 
 variable "fetch_timeout" {
-  type = "string"
+  type = string
 
   default = "10"
 }
 
 variable "publish_timeout" {
-  type = "string"
+  type = string
 
   default = "10"
 }
 
 variable "python_runtime" {
-  type = "string"
+  type = string
 
   default = "python3.7"
 }

@@ -105,10 +105,30 @@ resource "aws_lambda_function" "autoshift_lambda_fetch" {
   environment {
     variables = {
       SSM_PARAM_PATH_NAME = var.ssm_param_path_name
-      PUBLISH_QUEUE_NAME = var.sqs_publish_queue_name
-      REDEEM_QUEUE_NAME = var.sqs_redeem_queue_name
+      PUBLISH_QUEUE_NAME  = var.sqs_publish_queue_name
+      REDEEM_QUEUE_NAME   = var.sqs_redeem_queue_name
     }
   }
+}
+
+resource "aws_lambda_permission" "cloudwatch_events" {
+  statement_id  = "AutoshiftFetchCloudwatchEvent"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.autoshift_lambda_fetch.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.fetch_scheduler.arn
+}
+
+resource "aws_cloudwatch_event_rule" "fetch_scheduler" {
+  name                = "AutoshiftFetchScheduler"
+  schedule_expression = "cron(14 10,13,16,19,22 * * ? *)"
+  is_enabled          = true
+}
+
+resource "aws_cloudwatch_event_target" "fetch_scheduler" {
+  target_id = "AutoshiftFetchLambdaFunction"
+  arn       = aws_lambda_function.autoshift_lambda_fetch.arn
+  rule      = aws_cloudwatch_event_rule.fetch_scheduler.name
 }
 
 # Redeem Lambda
@@ -124,7 +144,7 @@ resource "aws_lambda_function" "autoshift_lambda_redeem" {
   environment {
     variables = {
       SSM_PARAM_PATH_NAME = var.ssm_param_path_name
-      REDEEM_QUEUE_NAME = var.sqs_redeem_queue_name
+      REDEEM_QUEUE_NAME   = var.sqs_redeem_queue_name
     }
   }
 }
