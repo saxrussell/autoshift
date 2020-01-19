@@ -2,8 +2,10 @@
 
 import calendar
 import json
+import logging
 import os
 import re
+import sys
 from datetime import *
 
 import boto3
@@ -14,15 +16,26 @@ from pynamodb.exceptions import DoesNotExist
 from pynamodb.models import Model
 from twarc import Twarc
 
+logger = logging.getLogger()
+level = logging.getLevelName(os.getenv('LOG_LEVEL'))
+logger.setLevel(level)
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(level)
+logger.addHandler(stdout_handler)
+
 
 def get_tweets(tcconfig, up_to_pages=1, source_id="dgSHiftCodes"):
+    logger.debug("get_tweets args: {}".format([tcconfig, up_to_pages, source_id]))
     if tcconfig is not None:
+        logger.info("Setting Twitter client credential config")
         ct = tcconfig["consumer_key"]
         cs = tcconfig["consumer_secret"]
         at = tcconfig["access_token"]
         ats = tcconfig["access_token_secret"]
+        logger.debug("CT: {0}, CS: {1}, AT: {2}, ATS: {3}".format(ct, cs, at, ats))
     else:
-        raise Exception("Twitter client config cannot be None")
+        logger.error("No Twitter client config argument provided")
+        raise Exception("tcconfig cannot be None")
 
     twsclient = Twarc(ct, cs, at, ats)
 
@@ -36,16 +49,23 @@ def get_tweets_with_codes(tweets):
         created_at = t["created_at"]
         msg_id = t["id_str"]
 
-        shift_code_search = re.search(r'SHIFT CODE', msg, re.M)
+        logger.info("Checking message id: {}".format(msg_id))
+        logger.debug("message: {}".format(msg))
+        logger.debug("create_at: {}".format(created_at))
+
+        shift_code_search = re.search(r'SH[Ii]FT CODE', msg, re.M)
 
         if shift_code_search is None:
+            logger.info("No code found in message id: {}".format(msg_id))
             continue
 
         bl3_search = re.search(r'BORDERLANDS 3', msg, re.M)
 
         if bl3_search is None:
+            logger.info("Shift code found, but is not for BL3. Skipping.")
             continue
         else:
+            logger.info("Message {} contains shift code for BL3".format(msg_id))
             relevant_tweets.append({
                 "tweet_created": str(parse(created_at)),
                 "tweet_id": msg_id,
@@ -60,10 +80,12 @@ def add_shift_code(tweets):
         shift_code = re.search(r'[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}', t["msg"], re.M)
 
         if shift_code is None:
+            logger.info("Shift code not found in message. Is tweet mis-titled?")
             continue
         else:
             t["code"] = shift_code.group(0)
             shift_code_added.append(t)
+            logger.info("Found shift code: {}".format(t["code"]))
     return shift_code_added
 
 
@@ -146,6 +168,7 @@ def publish_sqs_message(queue_name, msg_json):
 
 def handler_fetch(event=None, context=None):
     # setup the SSM param store client
+    logger.info("ssm:client - init")
     ssm_client = boto3.client("ssm")
     twitter_api_ssm_path = '/{}/twitter/api'.format(os.getenv('SSM_PARAM_PATH_NAME', 'autoshift'))
     twitter_api_ssm_params = [
@@ -155,10 +178,14 @@ def handler_fetch(event=None, context=None):
         'access_token_secret'
     ]
 
+    logger.debug("ssm:client - params = {}".format([twitter_api_ssm_path, twitter_api_ssm_params]))
+
     # init the twarc client config
+    logger.info("twarc:client - init")
     client_config = {}
 
     # fetch twitter api credentials from param store
+    logger.info("twarc:client - get configs from SSM")
     for param in twitter_api_ssm_params:
         fq_param = "{0}/{1}".format(twitter_api_ssm_path, param)
         param_response = ssm_client.get_parameter(Name=fq_param, WithDecryption=True)
@@ -168,32 +195,33 @@ def handler_fetch(event=None, context=None):
     redeem_queue_name = os.getenv('REDEEM_QUEUE_NAME', 'shift_code_redeem')
     publish_queue_name = os.getenv('PUBLISH_QUEUE_NAME', 'shift_code_publish')
 
-    print("Fetching latest dgSHiFTCodes tweets from Twitter API")
+    logger.info("Fetching latest dgSHiFTCodes tweets from Twitter API")
     all_tweets = get_tweets(client_config)
 
-    print("Filtering out messages that do not contain SHiFT codes")
+    logger.info("Filtering out messages that do not contain SHiFT codes")
     tweets_with_codes = get_tweets_with_codes(all_tweets)
 
     if len(tweets_with_codes) == 0:
-        exit('No recent SHiFT codes found')
+        logger.info('No recent SHiFT codes found')
+        exit(0)
 
-    print("Parse messages for the actual shift code and add it to the dict")
+    logger.info("Extracting codes from tweets")
     mapped_shift_codes = add_shift_code(tweets_with_codes)
 
-    print("Search tweets containing codes for expiration dates and add expire dates to dict")
+    logger.info("Search tweets containing codes for expiration dates and add expire dates to dict")
     final_set = map_expirations(mapped_shift_codes)
 
-    print("Filtration complete. Checking if code is in DB.")
+    logger.info("Filtration complete. Checking if code is in DB.")
     code_messages_checked = 0
     update_counter = 0
     for parsed_tweet in final_set:
-        print("Getting item for shift code {}".format(parsed_tweet["code"]))
+        logger.info("Getting item for shift code {}".format(parsed_tweet["code"]))
         try:
             item = ShiftCode.get(parsed_tweet["code"],
                                  calendar.timegm(parse(parsed_tweet["tweet_created"]).timetuple()))
 
             item_attrs = item.__dict__
-            print("Write not required. Key {} exists.".format(item_attrs['attribute_values']['shiftCode']))
+            logger.info("Write not required. Key {} exists.".format(item_attrs['attribute_values']['shiftCode']))
             code_messages_checked += 1
 
         except DoesNotExist:
@@ -201,37 +229,40 @@ def handler_fetch(event=None, context=None):
             parsed_tweet["published"] = False
             parsed_tweet["redemption_retries"] = 0
             parsed_tweet["publish_retries"] = 0
-            print("Write required. Attempting to PutItem to dynamo...")
+            logger.info("Write required. Attempting to PutItem to dynamo...")
+
             write_dynamo_item(parsed_tweet)
-            print("Write successful.")
+            logger.info("Write successful.")
+
             code_messages_checked += 1
             update_counter += 1
-            print("Converting parsed tweet to JSON")
+            logger.info("Converting parsed tweet to JSON")
 
             try:
                 parsed_tweet_json = json.dumps(parsed_tweet)
 
-                print("Putting message on redeem queue")
+                logger.info("sqs:publish - pub message to 'redeem' queue")
 
                 try:
                     publish_sqs_message(redeem_queue_name, parsed_tweet_json)
                 except ClientError as redeem_sqs_err:
-                    print("Error encountered publishing message to redeem queue")
-                    print(redeem_sqs_err)
-                print("Putting message on publish queue")
+                    logger.info("Error encountered publishing message to 'redeem' queue")
+                    logger.info(redeem_sqs_err)
+                logger.info("sqs:publish - pub message to 'publish' queue")
 
                 try:
                     publish_sqs_message(publish_queue_name, parsed_tweet_json)
+                    logger.debug("queue: {0}, msg: {1}".format(publish_queue_name, parsed_tweet_json))
                 except ClientError as publish_sqs_err:
-                    print("Error encountered publishing message to publish queue")
-                    print(publish_sqs_err)
+                    logger.error("Error encountered publishing message to publish queue")
+                    logger.error(publish_sqs_err)
             except ValueError as err:
-                print("Error converting parsed tweet to JSON")
-                print("Downstream redeem/publish lambdas will NOT be triggered")
-                print(err)
+                logger.error("Error converting parsed tweet to JSON")
+                logger.error("Downstream redeem/publish lambdas will NOT be triggered")
+                logger.error(err)
 
-    print("Finished.")
-    print("{} records checked.".format(code_messages_checked))
-    print("{} records updated.".format(update_counter))
+    logger.info("Finished.")
+    logger.info("{} records checked.".format(code_messages_checked))
+    logger.info("{} records updated.".format(update_counter))
 
     return True
