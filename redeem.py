@@ -73,7 +73,7 @@ def handler_redeem(event, context):
                     print("SUCCESS : SHiFT code redeem status updated in database.")
                     print("Deleting message from queue")
                     queue_name = os.getenv('REDEEM_QUEUE_NAME', 'shift_code_redeem')
-                    sqs_url = sqs_client.get_queue_url(QueueName=queue_name)
+                    sqs_url = sqs_client.get_queue_url(QueueName=queue_name)["QueueUrl"]
                     sqs_client.delete_message(QueueUrl=sqs_url, ReceiptHandle=rec["receiptHandle"])
                 else:
                     print("FAILURE : SHiFT code redeem state for {} not updated correctly.".format(msg_body["code"]))
