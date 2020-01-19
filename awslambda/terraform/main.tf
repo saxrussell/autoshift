@@ -93,7 +93,13 @@ resource "aws_iam_role_policy" "autoshift_lambda_exec_role" {
 }
 
 # Fetch Lambda
+resource "aws_cloudwatch_log_group" "autoshift_lambda_fetch" {
+  name              = "/aws/lambda/${var.lambda_function_name}_fetch"
+  retention_in_days = var.lambda_log_retention
+}
+
 resource "aws_lambda_function" "autoshift_lambda_fetch" {
+  depends_on    = [aws_cloudwatch_log_group.autoshift_lambda_fetch]
   function_name = "${var.lambda_function_name}_fetch"
   handler       = "fetch.handler_fetch"
   role          = aws_iam_role.autoshift_lambda_exec_role.arn
@@ -107,6 +113,7 @@ resource "aws_lambda_function" "autoshift_lambda_fetch" {
       SSM_PARAM_PATH_NAME = var.ssm_param_path_name
       PUBLISH_QUEUE_NAME  = var.sqs_publish_queue_name
       REDEEM_QUEUE_NAME   = var.sqs_redeem_queue_name
+      LOG_LEVEL           = var.lambda_log_level
     }
   }
 }
@@ -132,7 +139,13 @@ resource "aws_cloudwatch_event_target" "fetch_scheduler" {
 }
 
 # Redeem Lambda
+resource "aws_cloudwatch_log_group" "autoshift_lambda_redeem" {
+  name              = "/aws/lambda/${var.lambda_function_name}_redeem"
+  retention_in_days = var.lambda_log_retention
+}
+
 resource "aws_lambda_function" "autoshift_lambda_redeem" {
+  depends_on    = [aws_cloudwatch_log_group.autoshift_lambda_redeem]
   function_name = "${var.lambda_function_name}_redeem"
   handler       = "redeem.handler_redeem"
   role          = aws_iam_role.autoshift_lambda_exec_role.arn
@@ -145,6 +158,7 @@ resource "aws_lambda_function" "autoshift_lambda_redeem" {
     variables = {
       SSM_PARAM_PATH_NAME = var.ssm_param_path_name
       REDEEM_QUEUE_NAME   = var.sqs_redeem_queue_name
+      LOG_LEVEL           = var.lambda_log_level
     }
   }
 }

@@ -163,3 +163,17 @@ Your timezone
 Default: `America/Chicago`
 
 Example: `Europe/London`
+
+# AWS Lambda
+
+Lambda requires building a deployment package and uploading it 
+to the Lambda API or providing it via Amazon S3. The provided 
+Makefile will produce a ZIP artifact for you to use, but it 
+will be up to you to put it in the correct place. If you're 
+planning to use the Terraform configuration, make sure to upload
+the artifact to the bucket/path you've defined for the Lambda
+variables.
+
+To build, just run `make`. No args are needed. A virtualenv will
+be created under this directory and the completed ZIP file is
+produced to `./awslambda/bin/autoshift_${EPOCH_TIMSTAMP}.zip`.

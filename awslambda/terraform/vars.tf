@@ -61,6 +61,19 @@ variable "lambda_function_name" {
   default = "autoshift"
 }
 
+variable "lambda_log_level" {
+  type = string
+
+  default = "INFO"
+}
+
+variable "lambda_log_retention" {
+  type        = number
+  description = "number of days to retain lambda execution logs in cloudwatch"
+
+  default = 14
+}
+
 variable "publish_lambda_function_name" {
   type = string
 
